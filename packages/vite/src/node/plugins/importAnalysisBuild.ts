@@ -403,9 +403,7 @@ export function buildImportAnalysisPlugin(config: ResolvedConfig): Plugin {
         return
       }
 
-      // If preload is not enabled, we parse through each imports and remove any imports to pure CSS chunks
-      // as they are removed from the bundle
-      if (!insertPreload) {
+      if (ssr || isWorker) {
         const removedPureCssFiles = removedPureCssFilesCache.get(config)
         if (removedPureCssFiles && removedPureCssFiles.size > 0) {
           for (const file in bundle) {
