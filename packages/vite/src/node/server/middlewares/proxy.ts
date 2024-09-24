@@ -27,34 +27,19 @@ export interface ProxyOptions extends HttpProxy.ServerOptions {
     res: http.ServerResponse,
     options: ProxyOptions,
   ) => void | null | undefined | false | string
-  /**
-   * rewrite the Origin header of a WebSocket request to match the the target
-   *
-   * **Exercise caution as rewriting the Origin can leave the proxying open to [CSRF attacks](https://owasp.org/www-community/attacks/csrf).**
-   */
-  rewriteWsOrigin?: boolean | undefined
 }
 
-const rewriteOriginHeader = (
+const setOriginHeader = (
   proxyReq: http.ClientRequest,
-  options: ProxyOptions,
-  config: ResolvedConfig,
+  options: HttpProxy.ServerOptions,
 ) => {
   // Browsers may send Origin headers even with same-origin
   // requests. It is common for WebSocket servers to check the Origin
-  // header, so if rewriteWsOrigin is true we change the Origin to match
+  // header, so if changeOrigin is true we change the Origin to match
   // the target URL.
-  if (options.rewriteWsOrigin) {
+  // https://github.com/http-party/node-http-proxy/issues/1669
+  if (options.changeOrigin) {
     const { target } = options
-
-    if (proxyReq.headersSent) {
-      config.logger.warn(
-        colors.yellow(
-          `Unable to rewrite Origin header as headers are already sent.`,
-        ),
-      )
-      return
-    }
 
     if (proxyReq.getHeader('origin') && target) {
       const changedOrigin =
@@ -127,8 +112,12 @@ export function proxyMiddleware(
       }
     })
 
+    proxy.on('proxyReq', (proxyReq, req, res, options) => {
+      setOriginHeader(proxyReq, options)
+    })
+
     proxy.on('proxyReqWs', (proxyReq, req, socket, options, head) => {
-      rewriteOriginHeader(proxyReq, options, config)
+      setOriginHeader(proxyReq, options)
 
       socket.on('error', (err) => {
         config.logger.error(
